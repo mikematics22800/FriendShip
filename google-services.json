@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "474367110848",
+    "project_id": "friendship-507413",
+    "storage_bucket": "friendship-507413.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:474367110848:android:944c600a939ee23eae0725",
+        "android_client_info": {
+          "package_name": "com.mikematics.friendship"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB_4ZxByi7dCjcJNIZiRB2R2bKjO5LFfVI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,11 @@
+type User @table {
+  id: String! @default(expr: "uuidV4()")
+  firstName: String!
+  lastName: String!
+  dateOfBirth: Date!
+  isVerified: Boolean! @default(value: false)
+  # male = true female = false
+  bioSex: Boolean! @default(value: true)
+  email: String!
+  bio: String!
+}
