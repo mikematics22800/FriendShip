@@ -6,5 +6,19 @@
   },
   "dataconnect": {
     "source": "dataconnect"
+  },
+  "auth": {
+    "authorizedDomains": [
+      "localhost",
+      "127.0.0.1",
+      "friendship-507413.firebaseapp.com",
+      "friendship-507413.web.app"
+    ],
+    "providers": {
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "FriendShip",
+        "supportEmail": "mikematics22800@gmail.com"
+      }
+    }
   }
 }

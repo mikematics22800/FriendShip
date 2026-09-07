@@ -12,7 +12,12 @@
           "package_name": "com.mikematics.friendship"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "474367110848-1g010vt8nt8s96m3qvg7059pblv52sj6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyB_4ZxByi7dCjcJNIZiRB2R2bKjO5LFfVI"
@@ -20,7 +25,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "474367110848-1g010vt8nt8s96m3qvg7059pblv52sj6.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "474367110848-6ien7t049i4p7uao631a6ahc21cs322r.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.mikematics.friendship"
+              }
+            }
+          ]
         }
       }
     }

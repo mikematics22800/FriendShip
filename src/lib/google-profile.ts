@@ -1,4 +1,6 @@
-import { GoogleOneTapSignIn } from 'react-native-nitro-google-signin';
+import { Platform } from 'react-native';
+
+import { requestGoogleScopes } from '@/lib/google-auth';
 
 /**
  * Birthdays are not part of sign-in. They need this extra scope, the People API
@@ -17,20 +19,22 @@ type PeopleDate = { year?: number; month?: number; day?: number };
 type PeopleBirthday = { metadata?: { primary?: boolean }; date?: PeopleDate };
 
 export function hasBirthdayScope(): boolean {
+  if (Platform.OS === 'web') {
+    const { hasStoredGoogleScope } = require('@/lib/google-token') as typeof import('@/lib/google-token');
+    return hasStoredGoogleScope(BIRTHDAY_SCOPE);
+  }
+
+  const { GoogleOneTapSignIn } = require('react-native-nitro-google-signin') as typeof import('react-native-nitro-google-signin');
   return GoogleOneTapSignIn.getCurrentUser()?.scopes.includes(BIRTHDAY_SCOPE) ?? false;
 }
 
 /** Shows Google's consent sheet. Returns false when the user declines. */
 export async function requestBirthdayAccess(): Promise<boolean> {
-  const { accessToken } = await GoogleOneTapSignIn.requestScopes([BIRTHDAY_SCOPE]);
-
-  // iOS resolves with a null token on cancel; Android throws SIGN_IN_CANCELLED.
-  return accessToken !== null;
+  return requestGoogleScopes([BIRTHDAY_SCOPE]);
 }
 
 export async function fetchGoogleBirthday(): Promise<GoogleBirthday | null> {
-  const { accessToken } = await GoogleOneTapSignIn.getTokens();
-
+  const accessToken = await googleAccessToken();
   const response = await fetch(
     'https://people.googleapis.com/v1/people/me?personFields=birthdays',
     { headers: { Authorization: `Bearer ${accessToken}` } },
@@ -64,4 +68,19 @@ export function formatBirthday({ year, month, day }: GoogleBirthday): string {
     month: 'long',
     day: 'numeric',
   });
+}
+
+async function googleAccessToken(): Promise<string> {
+  if (Platform.OS === 'web') {
+    const { getGoogleAccessToken } = require('@/lib/google-token') as typeof import('@/lib/google-token');
+    const accessToken = getGoogleAccessToken();
+    if (!accessToken) {
+      throw new Error('Google session expired. Share your birthday again.');
+    }
+    return accessToken;
+  }
+
+  const { GoogleOneTapSignIn } = require('react-native-nitro-google-signin') as typeof import('react-native-nitro-google-signin');
+  const { accessToken } = await GoogleOneTapSignIn.getTokens();
+  return accessToken;
 }

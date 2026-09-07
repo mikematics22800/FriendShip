@@ -28,9 +28,9 @@ export default function Login({ onSignedIn }: LoginProps) {
         <BorderDots />
         <Image source={logo} style={styles.logo} contentFit="contain" accessibilityLabel="FriendShip" />
         <View style={styles.header}>
-          <Text style={styles.title}>FRIENDSHIP</Text>
+          <Text style={styles.title}>FriendShip</Text>
           <Text style={styles.subtitle}>
-            Zoom off and make plans with friends in your area safely and effortlessly.
+            Zoom off and make plans with friends in your area securely and effortlessly.
           </Text>
         </View>
         <GoogleSignInButton busy={busy} onPress={signIn} />
@@ -138,6 +138,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#1a1240',
+    padding: 25
   },
   card: { 
     width: '100%',
@@ -196,8 +197,8 @@ const styles = StyleSheet.create({
     }),
   },
   logo: {
-    width: 160,
-    height: 160,
+    width: 200,
+    height: 200,
     alignSelf: 'center',
   },
   header: {
@@ -219,6 +220,7 @@ const styles = StyleSheet.create({
     color: 'white',
     textAlign: 'center',
     marginBottom: 20,
+    fontWeight: 'bold',
   },
   status: {
     minHeight: 24,

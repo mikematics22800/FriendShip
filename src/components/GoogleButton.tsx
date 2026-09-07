@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
+
+import { GOOGLE_WEB_CLIENT_ID } from '@/lib/google-client-id';
 
 export type GoogleSignInButtonProps = {
   busy: boolean;
@@ -20,16 +22,17 @@ function NativeGoogleSignInButton({ busy, onPress }: GoogleSignInButtonProps) {
     require('react-native-nitro-google-signin') as typeof import('react-native-nitro-google-signin');
 
   return (
-    <Button
-      colorScheme="light"
-      size="wide"
-      contentAlignment="center"
-      signInBehavior="none"
-      loading={busy}
-      disabled={busy}
-      style={{ alignSelf: 'center', width: '100%' }}
-      onPress={onPress}
-    />
+    <View style={{ width: '100%' }}>
+      <Button
+        colorScheme="light"
+        size="wide"
+        contentAlignment="center"
+        signInBehavior="none"
+        loading={busy}
+        disabled={busy}
+        onPress={onPress}
+      />
+    </View>
   );
 }
 
@@ -61,7 +64,12 @@ function ensureOfficialGoogleButtonFont() {
 }
 
 type GoogleAccountsId = {
-  initialize: (config: { client_id: string; callback: (response: { credential: string }) => void }) => void;
+  initialize: (config: {
+    client_id: string;
+    callback: (response: { credential: string }) => void;
+    /** Chrome uses FedCM instead of a popup postMessage, which COOP would block. */
+    use_fedcm_for_button?: boolean;
+  }) => void;
   renderButton: (
     parent: HTMLElement,
     options: {
@@ -83,23 +91,41 @@ declare global {
 }
 
 function googleWebClientId() {
-  return (
-    process.env.EXPO_PUBLIC_GOOGLE_AUTH_WEB_CLIENT_ID ??
-    process.env.google_auth_web_client_id ??
-    '474367110848-o1glgpnqq4ofrgbq2vpjordj7737tp2h.apps.googleusercontent.com'
-  );
+  return GOOGLE_WEB_CLIENT_ID;
 }
 
-function loadGsiClient(): Promise<GoogleAccountsId> {
-  const existing = window.google?.accounts?.id;
-  if (existing) return Promise.resolve(existing);
+let gsiInit: Promise<GoogleAccountsId> | null = null;
+let gsiClientId: string | null = null;
+let onGoogleCredential: ((idToken: string) => void) | null = null;
 
-  return new Promise((resolve, reject) => {
+function loadGsiClient(): Promise<GoogleAccountsId> {
+  const clientId = googleWebClientId();
+  if (gsiInit && gsiClientId === clientId) return gsiInit;
+  gsiClientId = clientId;
+
+  gsiInit = new Promise((resolve, reject) => {
     const settle = () => {
       const client = window.google?.accounts?.id;
-      if (client) resolve(client);
-      else reject(new Error('Google Sign-In failed to load.'));
+      if (!client) {
+        reject(new Error('Google Sign-In failed to load.'));
+        return;
+      }
+
+      client.initialize({
+        client_id: googleWebClientId(),
+        use_fedcm_for_button: true,
+        callback: response => {
+          if (response.credential) onGoogleCredential?.(response.credential);
+        },
+      });
+      resolve(client);
     };
+
+    const existing = window.google?.accounts?.id;
+    if (existing) {
+      settle();
+      return;
+    }
 
     const script =
       document.querySelector<HTMLScriptElement>(`script[src="${GSI_SRC}"]`) ?? document.createElement('script');
@@ -111,10 +137,14 @@ function loadGsiClient(): Promise<GoogleAccountsId> {
       script.src = GSI_SRC;
       script.async = true;
       document.head.appendChild(script);
-    } else if (window.google?.accounts?.id) {
-      settle();
     }
   });
+
+  return gsiInit;
+}
+
+function buttonWidthForHost(host: HTMLElement) {
+  return Math.round(host.getBoundingClientRect().width);
 }
 
 function GoogleIdentityServicesButton({ busy, onPress }: GoogleSignInButtonProps) {
@@ -123,40 +153,58 @@ function GoogleIdentityServicesButton({ busy, onPress }: GoogleSignInButtonProps
   onPressRef.current = onPress;
 
   useEffect(() => {
+    onGoogleCredential = idToken => onPressRef.current(idToken);
     ensureOfficialGoogleButtonFont();
 
     const host = hostRef.current;
-    const clientId = googleWebClientId();
-    if (!host || !clientId) return;
+    if (!host || !googleWebClientId()) return;
 
     let cancelled = false;
+    let client: GoogleAccountsId | undefined;
+    let lastWidth = 0;
 
-    void loadGsiClient().then(client => {
-      if (cancelled || !hostRef.current) return;
+    const render = () => {
+      if (cancelled || !client || !hostRef.current) return;
 
-      client.initialize({
-        client_id: clientId,
-        callback: response => {
-          onPressRef.current(response.credential);
-        },
-      });
+      const width = buttonWidthForHost(hostRef.current);
+      if (width < 1 || width === lastWidth) return;
 
-      host.replaceChildren();
-      client.renderButton(host, {
+      lastWidth = width;
+      hostRef.current.replaceChildren();
+      client.renderButton(hostRef.current, {
         type: 'standard',
         theme: 'outline',
         size: 'large',
         text: 'continue_with',
         shape: 'rectangular',
-        width: Math.min(400, Math.max(host.clientWidth || 400, 200)),
+        width,
       });
+    };
+
+    void loadGsiClient().then(gsi => {
+      if (cancelled || !hostRef.current) return;
+
+      client = gsi;
+      render();
     });
+
+    const observer = new ResizeObserver(render);
+    observer.observe(host);
 
     return () => {
       cancelled = true;
+      observer.disconnect();
       host.replaceChildren();
     };
   }, []);
 
-  return <div ref={hostRef} aria-busy={busy} style={{ pointerEvents: busy ? 'none' : 'auto' }} />;
+  return (
+    <View style={{ width: '100%', maxWidth: '100%' }}>
+      <div
+        ref={hostRef}
+        aria-busy={busy}
+        style={{ width: '100%', maxWidth: '100%', pointerEvents: busy ? 'none' : 'auto' }}
+      />
+    </View>
+  );
 }

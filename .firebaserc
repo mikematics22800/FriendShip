@@ -1,5 +1,7 @@
 {
   "projects": {
     "default": "friendship-507413"
-  }
+  },
+  "targets": {},
+  "etags": {}
 }
