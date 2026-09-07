@@ -8,14 +8,12 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.mikematics.friendship",
-      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.mikematics.friendship",
-      "googleServicesFile": "./google-services.json",
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -29,9 +27,7 @@
           "backgroundColor": "#208AEF"
         }
       ],
-      "@react-native-firebase/app",
-      "@react-native-firebase/auth",
-      "react-native-nitro-google-signin"
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -1,0 +1,16 @@
+---
+description: Prefer Platform.OS over .web file extensions
+alwaysApply: true
+---
+
+# No `.web` / `.native` file splits
+
+Do not create platform-specific files (`*.web.ts`, `*.web.tsx`, `*.native.ts`). Put web and native in one file and branch with `Platform.OS` or `Platform.select` imported directly from `react-native` so Expo can platform-shake.
+
+```ts
+import { Platform } from 'react-native';
+
+if (Platform.OS !== 'web') {
+  require('expo-sqlite/localStorage/install');
+}
+```

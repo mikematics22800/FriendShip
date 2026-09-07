@@ -1,4 +1,15 @@
-import { Link, SplashScreen, Stack, usePathname, useRouter, type Href } from 'expo-router';
+import { Image } from 'expo-image';
+import {
+  DarkTheme,
+  DefaultTheme,
+  Link,
+  SplashScreen,
+  Stack,
+  ThemeProvider,
+  usePathname,
+  useRouter,
+  type Href,
+} from 'expo-router';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import {
   Appbar,
@@ -18,6 +29,25 @@ import { SessionProvider, useSession } from '@/lib/session';
 SplashScreen.preventAutoHideAsync();
 
 const IS_WEB = Platform.OS === 'web';
+const SPACE_BG = require('@/assets/images/toon-space.jpg');
+const SPACE_FALLBACK = '#1a1240';
+const LIME = '#b4f500';
+
+const limeTextGlow = Platform.select({
+  ios: {
+    textShadowColor: LIME,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 20,
+  },
+  android: {
+    textShadowColor: LIME,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 20,
+  },
+  default: {
+    textShadow: `0 0 20px ${LIME}`,
+  },
+});
 
 const TABS = [
   {
@@ -35,8 +65,8 @@ const TABS = [
   {
     href: '/events',
     label: 'Events',
-    focusedIcon: 'ticket-confirmation',
-    unfocusedIcon: 'ticket-confirmation-outline',
+    focusedIcon: 'map-marker',
+    unfocusedIcon: 'map-marker-outline',
   },
   {
     href: '/friends',
@@ -94,13 +124,24 @@ const darkTheme = {
 export default function RootLayout() {
   const scheme = useColorScheme();
   const theme = scheme === 'dark' ? darkTheme : lightTheme;
+  const navigationTheme = scheme === 'dark' ? DarkTheme : DefaultTheme;
 
   return (
     <PaperProvider theme={theme}>
-      <SessionProvider>
-        <SplashScreenController />
-        <RootNavigator />
-      </SessionProvider>
+      <ThemeProvider
+        value={{
+          ...navigationTheme,
+          colors: {
+            ...navigationTheme.colors,
+            background: 'transparent',
+          },
+        }}
+      >
+        <SessionProvider>
+          <SplashScreenController />
+          <RootNavigator />
+        </SessionProvider>
+      </ThemeProvider>
     </PaperProvider>
   );
 }
@@ -119,14 +160,20 @@ function SplashScreenController() {
 function RootNavigator() {
   const { user, initializing } = useSession();
   const pathname = usePathname();
-  const theme = useTheme();
   const showNav = !initializing && !!user && TABS.some(tab => isTabPath(pathname, tab.href));
 
   return (
-    <View style={[styles.shell, { backgroundColor: theme.colors.background }]}>
+    <View style={styles.shell}>
+      <Image source={SPACE_BG} style={styles.background} contentFit="cover" />
       {showNav && IS_WEB ? <DesktopNavBar /> : null}
       <View style={styles.scene}>
-        <Stack screenOptions={{ headerShown: false, animation: showNav ? 'none' : 'default' }}>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: showNav ? 'none' : 'default',
+            contentStyle: { backgroundColor: 'transparent' },
+          }}
+        >
           <Stack.Screen name="index" />
 
           <Stack.Protected guard={!!user}>
@@ -160,7 +207,8 @@ function DesktopNavBar() {
       statusBarHeight={0}
       style={[styles.desktopBar, { borderBottomColor: theme.colors.outlineVariant }]}
     >
-      <Text variant="titleLarge" style={[styles.brand, { color: "#b4f500" }]}>
+      <Image source={require('@/assets/images/icon.png')} style={{ width: 32, height: 32 }} />
+      <Text variant="titleLarge" style={[styles.brand]}>
         FriendShip
       </Text>
       <ScrollView
@@ -231,6 +279,15 @@ function isTabPath(pathname: string, href: string) {
 const styles = StyleSheet.create({
   shell: {
     flex: 1,
+    backgroundColor: SPACE_FALLBACK,
+  },
+  background: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    pointerEvents: 'none',
   },
   scene: {
     flex: 1,
@@ -241,7 +298,9 @@ const styles = StyleSheet.create({
   },
   brand: {
     fontWeight: '700',
-    marginRight: 16,
+    color: LIME,
+    marginLeft: 10,
+    ...limeTextGlow,
   },
   desktopScroll: {
     flex: 1,

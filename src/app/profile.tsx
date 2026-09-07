@@ -1,16 +1,9 @@
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { describeGoogleSignInError } from '@/lib/google-auth';
-import {
-  fetchGoogleBirthday,
-  formatBirthday,
-  hasBirthdayScope,
-  requestBirthdayAccess,
-  type GoogleBirthday,
-} from '@/lib/google-profile';
+import { useMetaProfile } from '@/hooks/use-meta-profile';
+import { formatBirthday, type MetaBirthday } from '@/lib/facebook-profile';
 import { useSession } from '@/lib/session';
 
 const LIME = '#b4f500';
@@ -19,67 +12,30 @@ const NAVY_DEEP = '#120e24';
 const INK = '#e8e6ee';
 const MUTED = '#9b97ad';
 
-type BirthdayState =
-  | { status: 'needsConsent' }
-  | { status: 'loading' }
-  | { status: 'ready'; value: GoogleBirthday }
-  | { status: 'unavailable' }
-  | { status: 'error'; message: string };
-
 export default function Profile() {
   const { user, signOut } = useSession();
-  const [birthday, setBirthday] = useState<BirthdayState>({ status: 'loading' });
-
-  const loadBirthday = useCallback(async () => {
-    setBirthday({ status: 'loading' });
-    try {
-      const value = await fetchGoogleBirthday();
-      setBirthday(value ? { status: 'ready', value } : { status: 'unavailable' });
-    } catch (cause) {
-      setBirthday({ status: 'error', message: describeBirthdayError(cause) });
-    }
-  }, []);
-
-  useEffect(() => {
-    // Only read silently when consent already exists, so landing here never
-    // triggers an unprompted Google consent sheet.
-    try {
-      if (hasBirthdayScope()) {
-        loadBirthday();
-      } else {
-        setBirthday({ status: 'needsConsent' });
-      }
-    } catch (cause) {
-      setBirthday({ status: 'error', message: describeBirthdayError(cause) });
-    }
-  }, [loadBirthday]);
-
-  async function handleGrantBirthday() {
-    setBirthday({ status: 'loading' });
-    try {
-      if (await requestBirthdayAccess()) {
-        await loadBirthday();
-      } else {
-        setBirthday({ status: 'needsConsent' });
-      }
-    } catch (cause) {
-      setBirthday({ status: 'error', message: describeBirthdayError(cause) });
-    }
-  }
+  const meta = useMetaProfile();
+  const name = meta.profile?.name ?? user?.displayName;
+  const photoURL = meta.profile?.photoURL ?? user?.photoURL;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.container}>
         <View style={styles.card}>
           <View style={styles.profile}>
-            <Avatar photoURL={user?.photoURL} name={user?.displayName} />
-            <Text style={styles.name}>{user?.displayName ?? 'Unnamed account'}</Text>
+            <Avatar photoURL={photoURL} name={name} />
+            <Text style={styles.name}>{name ?? 'Unnamed account'}</Text>
             {user?.email ? <Text style={styles.email}>{user.email}</Text> : null}
           </View>
 
           <View style={styles.field}>
             <Text style={styles.label}>Date of birth</Text>
-            <BirthdayValue state={birthday} onGrant={handleGrantBirthday} onRetry={loadBirthday} />
+            <BirthdayValue
+              status={meta.status}
+              birthday={meta.profile?.birthday ?? null}
+              error={meta.status === 'error' ? meta.message : null}
+              onRetry={meta.reload}
+            />
           </View>
 
           <Pressable onPress={signOut} style={({ pressed }) => [styles.signOut, pressed && styles.pressed]}>
@@ -111,52 +67,38 @@ function Avatar({ photoURL, name }: { photoURL?: string | null; name?: string | 
 }
 
 function BirthdayValue({
-  state,
-  onGrant,
+  status,
+  birthday,
+  error,
   onRetry,
 }: {
-  state: BirthdayState;
-  onGrant: () => void;
+  status: 'idle' | 'loading' | 'ready' | 'error';
+  birthday: MetaBirthday | null;
+  error: string | null;
   onRetry: () => void;
 }) {
-  switch (state.status) {
-    case 'loading':
-      return <ActivityIndicator color={LIME} style={styles.fieldLoading} />;
-
-    case 'ready':
-      return <Text style={styles.value}>{formatBirthday(state.value)}</Text>;
-
-    case 'needsConsent':
-      return (
-        <>
-          <Text style={styles.hint}>Google asks for this separately from sign-in.</Text>
-          <Pressable onPress={onGrant} style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}>
-            <Text style={styles.secondaryText}>Share my birthday</Text>
-          </Pressable>
-        </>
-      );
-
-    case 'unavailable':
-      return (
-        <Text style={styles.hint}>
-          No birthday on this Google account, or it is not shared with apps.
-        </Text>
-      );
-
-    case 'error':
-      return (
-        <>
-          <Text style={styles.error}>{state.message}</Text>
-          <Pressable onPress={onRetry} style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}>
-            <Text style={styles.secondaryText}>Try again</Text>
-          </Pressable>
-        </>
-      );
+  if (status === 'loading' || status === 'idle') {
+    return <ActivityIndicator color={LIME} style={styles.fieldLoading} />;
   }
-}
 
-function describeBirthdayError(cause: unknown): string {
-  return describeGoogleSignInError(cause) ?? 'Could not read your birthday from Google.';
+  if (birthday) {
+    return <Text style={styles.value}>{formatBirthday(birthday)}</Text>;
+  }
+
+  if (status === 'error') {
+    return (
+      <>
+        <Text style={styles.error}>{error}</Text>
+        <Pressable onPress={onRetry} style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}>
+          <Text style={styles.secondaryText}>Try again</Text>
+        </Pressable>
+      </>
+    );
+  }
+
+  return (
+    <Text style={styles.hint}>No birthday on this Facebook account, or it is not shared with apps.</Text>
+  );
 }
 
 const limeGlow = Platform.select({
@@ -194,13 +136,11 @@ const limeTextGlow = Platform.select({
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: NAVY_DEEP,
   },
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: NAVY_DEEP,
     paddingHorizontal: 24,
     paddingVertical: 32,
   },

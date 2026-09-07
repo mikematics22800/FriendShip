@@ -1,12 +1,11 @@
-import { Image, ImageBackground } from 'expo-image';
+import { Image } from 'expo-image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
 
-import { GoogleSignInButton } from '@/components/GoogleButton';
-import { useGoogleAuth, type UseGoogleAuthOptions } from '@/hooks/use-google-auth';
+import { FacebookSignInButton } from '@/components/FacebookButton';
+import { useFacebookAuth, type UseFacebookAuthOptions } from '@/hooks/use-facebook-auth';
 
 const logo = require('@/assets/images/icon.png');
-const space = require('@/assets/images/toon-space.jpg');
 
 const DOT_COLOR = '#b4f500';
 const DOT_SIZE = 6;
@@ -14,16 +13,16 @@ const DOT_INSET = 18;
 const DOT_SPACING = 28;
 
 export type LoginProps = {
-  onSignedIn?: UseGoogleAuthOptions['onSuccess'];
+  onSignedIn?: UseFacebookAuthOptions['onSuccess'];
 };
 
 export default function Login({ onSignedIn }: LoginProps) {
-  const { busy, error, signIn } = useGoogleAuth({
+  const { busy, error, signIn } = useFacebookAuth({
     onSuccess: onSignedIn,
   });
 
   return (
-    <ImageBackground source={space} style={styles.screen} contentFit="cover">
+    <View style={styles.screen}>
       <View style={styles.card}>
         <BorderDots />
         <Image source={logo} style={styles.logo} contentFit="contain" accessibilityLabel="FriendShip" />
@@ -33,14 +32,14 @@ export default function Login({ onSignedIn }: LoginProps) {
             Zoom off and make plans with friends in your area securely and effortlessly.
           </Text>
         </View>
-        <GoogleSignInButton busy={busy} onPress={signIn} />
+        <FacebookSignInButton busy={busy} onPress={signIn} />
 
         <View style={styles.status}>
           {busy ? <ActivityIndicator color="#e8e6ee" /> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
       </View>
-    </ImageBackground>
+    </View>
   );
 }
 
@@ -137,8 +136,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#1a1240',
-    padding: 25
+    padding: 25,
   },
   card: { 
     width: '100%',
