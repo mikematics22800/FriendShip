@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { FacebookSignInButton } from '@/components/FacebookButton';
-import { useFacebookAuth, type UseFacebookAuthOptions } from '@/hooks/use-facebook-auth';
 
 const logo = require('@/assets/images/icon.png');
 
@@ -12,14 +11,9 @@ const DOT_SIZE = 6;
 const DOT_INSET = 18;
 const DOT_SPACING = 28;
 
-export type LoginProps = {
-  onSignedIn?: UseFacebookAuthOptions['onSuccess'];
-};
-
-export default function Login({ onSignedIn }: LoginProps) {
-  const { busy, error, signIn } = useFacebookAuth({
-    onSuccess: onSignedIn,
-  });
+export default function Login() {
+  const busy = false;
+  const error = null;
 
   return (
     <View style={styles.screen}>
@@ -32,7 +26,7 @@ export default function Login({ onSignedIn }: LoginProps) {
             Zoom off and make plans with friends in your area securely and effortlessly.
           </Text>
         </View>
-        <FacebookSignInButton busy={busy} onPress={signIn} />
+        <FacebookSignInButton busy={busy} onPress={() => {}} />
 
         <View style={styles.status}>
           {busy ? <ActivityIndicator color="#e8e6ee" /> : null}
@@ -138,7 +132,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 25,
   },
-  card: { 
+  card: {
     width: '100%',
     maxWidth: 500,
     justifyContent: 'center',

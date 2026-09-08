@@ -3,7 +3,7 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useMetaProfile } from '@/hooks/use-meta-profile';
-import { formatBirthday, type MetaBirthday } from '@/lib/facebook-profile';
+import { formatBirthday, type MetaBirthday } from '@/lib/profile';
 import { useSession } from '@/lib/session';
 
 const LIME = '#b4f500';
