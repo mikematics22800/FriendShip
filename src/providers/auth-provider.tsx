@@ -1,72 +1,91 @@
-import { AuthContext } from '@/hooks/use-auth-context'
-import { supabase } from '@/lib/supabase'
-import { PropsWithChildren, useEffect, useState } from 'react'
+import { PropsWithChildren, useCallback, useEffect, useState } from 'react';
+
+import { AuthContext } from '@/hooks/use-auth-context';
+import { signOut as signOutOfSupabase, subscribeToAuthRedirects, supabase } from '@/lib/supabase';
 
 export default function AuthProvider({ children }: PropsWithChildren) {
-  const [claims, setClaims] = useState<Record<string, any> | undefined | null>()
-  const [profile, setProfile] = useState<any>()
-  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [claims, setClaims] = useState<Record<string, any> | undefined | null>();
+  const [profile, setProfile] = useState<any>();
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Fetch the claims once, and subscribe to auth state changes
+  // Read the claims once, then follow auth state changes and native OAuth redirects.
   useEffect(() => {
-    const fetchClaims = async () => {
-      setIsLoading(true)
-
-      const { data, error } = await supabase.auth.getClaims()
+    const readClaims = async () => {
+      const { data, error } = await supabase.auth.getClaims();
 
       if (error) {
-        console.error('Error fetching claims:', error)
+        console.error('Error fetching claims:', error);
       }
 
-      setClaims(data?.claims ?? null)
-      setIsLoading(false)
-    }
+      setClaims(data?.claims ?? null);
+      setIsLoading(false);
+    };
 
-    fetchClaims()
+    readClaims();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, _session) => {
-      console.log('Auth state changed:', { event: _event })
-      const { data } = await supabase.auth.getClaims()
-      setClaims(data?.claims ?? null)
-    })
+    } = supabase.auth.onAuthStateChange(async () => {
+      const { data } = await supabase.auth.getClaims();
+      setClaims(data?.claims ?? null);
+      setIsLoading(false);
+    });
 
-    // Cleanup subscription on unmount
+    const unsubscribeFromRedirects = subscribeToAuthRedirects();
+
     return () => {
-      subscription.unsubscribe()
-    }
-  }, [])
+      subscription.unsubscribe();
+      unsubscribeFromRedirects();
+    };
+  }, []);
 
-  // Fetch the profile when the claims change
+  // Load the profile row alongside the claims. This must not gate the splash screen.
   useEffect(() => {
-    const fetchProfile = async () => {
-      setIsLoading(true)
+    if (claims === undefined) return;
 
-      if (claims) {
-        const { data } = await supabase.from('profiles').select('*').eq('id', claims.sub).single()
+    let cancelled = false;
 
-        setProfile(data)
-      } else {
-        setProfile(null)
+    const readProfile = async () => {
+      if (!claims) {
+        setProfile(null);
+        return;
       }
 
-      setIsLoading(false)
-    }
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', claims.sub).single();
 
-    fetchProfile()
-  }, [claims])
+      if (cancelled) return;
+
+      if (error) {
+        console.warn('Could not load profile row:', error.message);
+        setProfile(null);
+        return;
+      }
+
+      setProfile(data);
+    };
+
+    readProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [claims]);
+
+  const signOut = useCallback(async () => {
+    await signOutOfSupabase();
+  }, []);
 
   return (
     <AuthContext.Provider
       value={{
         claims,
-        isLoading,
         profile,
-        isLoggedIn: claims != undefined,
+        isLoading,
+        isLoggedIn: !!claims,
+        signOut,
       }}
     >
       {children}
     </AuthContext.Provider>
-  )
+  );
 }

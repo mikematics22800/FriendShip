@@ -1,14 +1,14 @@
 import { Redirect } from 'expo-router';
 
-import { useSession } from '@/lib/session';
+import { useAuthContext } from '@/hooks/use-auth-context';
 
-/** Sends every visitor to login or dashboard once the session is known. */
+/** Sends every visitor to login or the app once the session is known. */
 export default function Index() {
-  const { user, initializing } = useSession();
+  const { isLoggedIn, isLoading } = useAuthContext();
 
-  if (initializing) {
+  if (isLoading) {
     return null;
   }
 
-  return <Redirect href={user ? '/profile' : '/login'} />;
+  return <Redirect href={isLoggedIn ? '/profile' : '/login'} />;
 }

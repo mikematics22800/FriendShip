@@ -3,7 +3,6 @@ import {
   DarkTheme,
   DefaultTheme,
   Link,
-  SplashScreen,
   Stack,
   ThemeProvider,
   usePathname,
@@ -23,10 +22,10 @@ import {
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { SplashScreenController } from '@/components/splash-screen-controller';
+import { useAuthContext } from '@/hooks/use-auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { SessionProvider, useSession } from '@/lib/session';
-
-SplashScreen.preventAutoHideAsync();
+import AuthProvider from '@/providers/auth-provider';
 
 const IS_WEB = Platform.OS === 'web';
 const SPACE_BG = require('@/assets/images/toon-space.jpg');
@@ -137,30 +136,19 @@ export default function RootLayout() {
           },
         }}
       >
-        <SessionProvider>
+        <AuthProvider>
           <SplashScreenController />
           <RootNavigator />
-        </SessionProvider>
+        </AuthProvider>
       </ThemeProvider>
     </PaperProvider>
   );
 }
 
-/** Holds the splash screen until we know whether the user is already signed in. */
-function SplashScreenController() {
-  const { initializing } = useSession();
-
-  if (!initializing) {
-    SplashScreen.hide();
-  }
-
-  return null;
-}
-
 function RootNavigator() {
-  const { user, initializing } = useSession();
+  const { isLoggedIn, isLoading } = useAuthContext();
   const pathname = usePathname();
-  const showNav = !initializing && !!user && TABS.some(tab => isTabPath(pathname, tab.href));
+  const showNav = !isLoading && isLoggedIn && TABS.some(tab => isTabPath(pathname, tab.href));
 
   return (
     <View style={styles.shell}>
@@ -176,7 +164,7 @@ function RootNavigator() {
         >
           <Stack.Screen name="index" />
 
-          <Stack.Protected guard={!!user}>
+          <Stack.Protected guard={isLoggedIn}>
             <Stack.Screen name="calendar" />
             <Stack.Screen name="chat" />
             <Stack.Screen name="events" />
@@ -186,7 +174,7 @@ function RootNavigator() {
             <Stack.Screen name="settings" />
           </Stack.Protected>
 
-          <Stack.Protected guard={!user}>
+          <Stack.Protected guard={!isLoggedIn}>
             <Stack.Screen name="login" />
           </Stack.Protected>
         </Stack>

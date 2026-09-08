@@ -1,8 +1,9 @@
 import { Image } from 'expo-image';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { FacebookSignInButton } from '@/components/FacebookButton';
+import { signInWithFacebook } from '@/lib/supabase';
 
 const logo = require('@/assets/images/icon.png');
 
@@ -12,8 +13,23 @@ const DOT_INSET = 18;
 const DOT_SPACING = 28;
 
 export default function Login() {
-  const busy = false;
-  const error = null;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSignIn = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+
+    try {
+      await signInWithFacebook();
+      // A successful session flips the route guard in the root layout.
+    } catch (cause) {
+      console.error('Facebook sign-in failed:', cause);
+      setError(cause instanceof Error ? cause.message : 'Could not sign in with Facebook. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  }, []);
 
   return (
     <View style={styles.screen}>
@@ -26,7 +42,7 @@ export default function Login() {
             Zoom off and make plans with friends in your area securely and effortlessly.
           </Text>
         </View>
-        <FacebookSignInButton busy={busy} onPress={() => {}} />
+        <FacebookSignInButton busy={busy} onPress={handleSignIn} />
 
         <View style={styles.status}>
           {busy ? <ActivityIndicator color="#e8e6ee" /> : null}
