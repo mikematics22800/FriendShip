@@ -1,4 +1,0 @@
-type User @table {
-  id: UUID! @default(expr: "uuidV4()")
-  bio: String!
-}
