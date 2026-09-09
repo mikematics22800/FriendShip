@@ -9,12 +9,21 @@ const NAVY = '#1a1530';
 const NAVY_DEEP = '#120e24';
 const INK = '#e8e6ee';
 
+function formatDateOfBirth(value?: string | null) {
+  if (!value) return null;
+
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
 export default function Profile() {
-  const { claims, profile, signOut } = useAuthContext();
-  const metadata = claims?.user_metadata ?? {};
-  const name = profile?.full_name ?? metadata.full_name ?? metadata.name ?? null;
-  const photoURL = profile?.avatar_url ?? metadata.avatar_url ?? metadata.picture ?? null;
-  const email = profile?.email ?? claims?.email ?? null;
+  const { profile, signOut } = useAuthContext();
+  const name = profile?.name ?? null;
+  const photoURL = profile?.pictureUrl ?? null;
+  const email = profile?.email ?? null;
+  const dateOfBirth = formatDateOfBirth(profile?.dateOfBirth);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -24,6 +33,7 @@ export default function Profile() {
             <Avatar photoURL={photoURL} name={name} />
             <Text style={styles.name}>{name ?? 'Unnamed account'}</Text>
             {email ? <Text style={styles.email}>{email}</Text> : null}
+            {dateOfBirth ? <Text style={styles.dob}>{dateOfBirth}</Text> : null}
           </View>
 
           <Pressable
@@ -141,6 +151,11 @@ const styles = StyleSheet.create({
     ...limeTextGlow,
   },
   email: {
+    fontSize: 15,
+    color: INK,
+    textAlign: 'center',
+  },
+  dob: {
     fontSize: 15,
     color: INK,
     textAlign: 'center',

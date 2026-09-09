@@ -1,11 +1,13 @@
 import { PropsWithChildren, useCallback, useEffect, useState } from 'react';
 
 import { AuthContext } from '@/hooks/use-auth-context';
+import { fetchFacebookProfile, type FacebookProfile } from '@/lib/facebook-profile';
 import { signOut as signOutOfSupabase, subscribeToAuthRedirects, supabase } from '@/lib/supabase';
+import { ensureUserRow } from '@/lib/user';
 
 export default function AuthProvider({ children }: PropsWithChildren) {
   const [claims, setClaims] = useState<Record<string, any> | undefined | null>();
-  const [profile, setProfile] = useState<any>();
+  const [profile, setProfile] = useState<FacebookProfile | null | undefined>();
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Read the claims once, then follow auth state changes and native OAuth redirects.
@@ -39,32 +41,30 @@ export default function AuthProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
-  // Load the profile row alongside the claims. This must not gate the splash screen.
+  // After login: ensure a public.user row exists, then load Graph profile (never written to user).
   useEffect(() => {
     if (claims === undefined) return;
 
     let cancelled = false;
 
-    const readProfile = async () => {
-      if (!claims) {
+    const afterLogin = async () => {
+      if (!claims?.sub) {
         setProfile(null);
         return;
       }
 
-      const { data, error } = await supabase.from('profiles').select('*').eq('id', claims.sub).single();
+      await ensureUserRow(claims.sub);
 
-      if (cancelled) return;
-
-      if (error) {
-        console.warn('Could not load profile row:', error.message);
-        setProfile(null);
-        return;
+      try {
+        const facebookProfile = await fetchFacebookProfile();
+        if (!cancelled) setProfile(facebookProfile);
+      } catch (cause) {
+        console.warn('Could not load Facebook profile:', cause);
+        if (!cancelled) setProfile(null);
       }
-
-      setProfile(data);
     };
 
-    readProfile();
+    afterLogin();
 
     return () => {
       cancelled = true;

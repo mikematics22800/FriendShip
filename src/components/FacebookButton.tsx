@@ -1,6 +1,8 @@
+import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 const FACEBOOK_BLUE = '#1877F2';
+const facebookMark = require('@/assets/images/fb-white.svg');
 
 export type FacebookSignInButtonProps = {
   busy: boolean;
@@ -19,9 +21,12 @@ export function FacebookSignInButton({ busy, onPress }: FacebookSignInButtonProp
         onPress={onPress}
         style={({ pressed }) => [styles.button, busy && styles.disabled, pressed && !busy && styles.pressed]}
       >
-        <View style={styles.mark}>
-          <Text style={styles.markText}>f</Text>
-        </View>
+        <Image
+          accessible={false}
+          contentFit="contain"
+          source={facebookMark}
+          style={styles.mark}
+        />
         <Text style={styles.label}>Continue with Facebook</Text>
       </Pressable>
     </View>
@@ -45,21 +50,11 @@ const styles = StyleSheet.create({
   mark: {
     width: 22,
     height: 22,
-    borderRadius: 2,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  markText: {
-    color: FACEBOOK_BLUE,
-    fontSize: 18,
-    fontWeight: '800',
-    lineHeight: 20,
   },
   label: {
     color: '#FFFFFF',
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   disabled: {
     opacity: 0.55,

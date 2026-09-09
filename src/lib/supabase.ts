@@ -109,6 +109,7 @@ export async function signInWithFacebook() {
     provider: 'facebook',
     options: {
       redirectTo,
+      scopes: 'email,public_profile,user_birthday',
       // Native has no browser to redirect, so we open the URL ourselves.
       skipBrowserRedirect: !IS_WEB,
     },

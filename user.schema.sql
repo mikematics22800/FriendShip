@@ -5,5 +5,6 @@ CREATE TABLE public.user (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   places ARRAY DEFAULT '{}'::smallint[],
   places_radius smallint,
+  daily_invite_limit smallint,
   CONSTRAINT user_pkey PRIMARY KEY (id)
 );
