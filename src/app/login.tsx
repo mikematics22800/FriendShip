@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { FacebookSignInButton } from '@/components/FacebookButton';
-import { signInWithFacebook } from '@/lib/supabase';
+import { GoogleSignInButton } from '@/components/GoogleButton';
+import { signInWithFacebook, signInWithGoogle } from '@/lib/supabase';
 
 const logo = require('@/assets/images/icon.png');
 
@@ -16,16 +17,22 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSignIn = useCallback(async () => {
+  const handleSignIn = useCallback(async (provider: 'facebook' | 'google') => {
     setBusy(true);
     setError(null);
 
+    const name = provider === 'facebook' ? 'Facebook' : 'Google';
+
     try {
-      await signInWithFacebook();
+      if (provider === 'facebook') {
+        await signInWithFacebook();
+      } else {
+        await signInWithGoogle();
+      }
       // A successful session flips the route guard in the root layout.
     } catch (cause) {
-      console.error('Facebook sign-in failed:', cause);
-      setError(cause instanceof Error ? cause.message : 'Could not sign in with Facebook. Please try again.');
+      console.error(`${name} sign-in failed:`, cause);
+      setError(cause instanceof Error ? cause.message : `Could not sign in with ${name}. Please try again.`);
     } finally {
       setBusy(false);
     }
@@ -42,8 +49,8 @@ export default function Login() {
             Zoom off and make plans with friends in your area securely and effortlessly.
           </Text>
         </View>
-        <FacebookSignInButton busy={busy} onPress={handleSignIn} />
-
+        <FacebookSignInButton busy={busy} onPress={() => handleSignIn('facebook')} />
+        <GoogleSignInButton busy={busy} onPress={() => handleSignIn('google')} />
         <View style={styles.status}>
           {busy ? <ActivityIndicator color="#e8e6ee" /> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}

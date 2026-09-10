@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type Provider } from '@supabase/supabase-js';
 import { makeRedirectUri } from 'expo-auth-session';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
@@ -13,7 +13,7 @@ if (!IS_WEB) {
 }
 
 if (IS_WEB) {
-  // Closes the popup/tab that Facebook redirects back into.
+  // Closes the popup/tab that an OAuth provider redirects back into.
   WebBrowser.maybeCompleteAuthSession();
 }
 
@@ -56,7 +56,7 @@ function readAuthParams(url: string) {
   return params;
 }
 
-/** Turns a Facebook redirect back into a Supabase session. */
+/** Turns an OAuth redirect back into a Supabase session. */
 export async function createSessionFromUrl(url: string) {
   const params = readAuthParams(url);
   const errorDescription = params.get('error_description') ?? params.get('error');
@@ -102,14 +102,14 @@ export function subscribeToAuthRedirects() {
   return () => subscription.remove();
 }
 
-export async function signInWithFacebook() {
+async function signInWithProvider(provider: Provider, scopes: string) {
   const redirectTo = makeRedirectUri();
 
   const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'facebook',
+    provider,
     options: {
       redirectTo,
-      scopes: 'email,public_profile,user_birthday',
+      scopes,
       // Native has no browser to redirect, so we open the URL ourselves.
       skipBrowserRedirect: !IS_WEB,
     },
@@ -123,6 +123,14 @@ export async function signInWithFacebook() {
   if (result.type !== 'success') return;
 
   await createSessionFromUrl(result.url);
+}
+
+export async function signInWithFacebook() {
+  return signInWithProvider('facebook', 'email,public_profile,user_birthday');
+}
+
+export async function signInWithGoogle() {
+  return signInWithProvider('google', 'openid email profile');
 }
 
 export async function signOut() {
