@@ -3,15 +3,19 @@ import { supabase } from '@/lib/supabase';
 export const SETTING_MIN = 10;
 export const SETTING_MAX = 100;
 
+export type FriendsOnly = [boolean, boolean];
+
 export type UserSettings = {
   places: number[];
   placesRadius: number;
   dailyInviteLimit: number;
+  friendsOnly: FriendsOnly;
 };
 
 const DEFAULT_PLACES: number[] = [];
 const DEFAULT_PLACES_RADIUS = SETTING_MIN;
 const DEFAULT_DAILY_INVITE_LIMIT = SETTING_MIN;
+const DEFAULT_FRIENDS_ONLY: FriendsOnly = [false, false];
 
 const ensuring = new Set<string>();
 
@@ -30,6 +34,13 @@ function uniqueInts(value: unknown): number[] {
     if (typeof item === 'number' && Number.isFinite(item)) seen.add(Math.round(item));
   }
   return [...seen];
+}
+
+/** [send, receive]; a leftover scalar boolean is copied into both slots. */
+function asFriendsOnly(value: unknown): FriendsOnly {
+  if (Array.isArray(value) && value.length >= 2) return [Boolean(value[0]), Boolean(value[1])];
+  if (typeof value === 'boolean') return [value, value];
+  return [DEFAULT_FRIENDS_ONLY[0], DEFAULT_FRIENDS_ONLY[1]];
 }
 
 /** Creates the public.user row for this auth UID if it does not already exist. */
@@ -67,7 +78,7 @@ export async function ensureUserRow(uid: string) {
 export async function fetchUserSettings(uid: string): Promise<UserSettings> {
   const { data, error } = await supabase
     .from('user')
-    .select('places, places_radius, daily_invite_limit')
+    .select('places, places_radius, daily_invite_limit, friends_only')
     .eq('id', uid)
     .maybeSingle();
 
@@ -79,10 +90,11 @@ export async function fetchUserSettings(uid: string): Promise<UserSettings> {
     places: uniqueInts(data?.places),
     placesRadius: clamp(data?.places_radius, DEFAULT_PLACES_RADIUS),
     dailyInviteLimit: clamp(data?.daily_invite_limit, DEFAULT_DAILY_INVITE_LIMIT),
+    friendsOnly: asFriendsOnly(data?.friends_only),
   };
 }
 
-/** Writes both editable settings back to the user row. */
+/** Writes editable settings back to the user row. */
 export async function updateUserSettings(uid: string, settings: UserSettings) {
   const { error } = await supabase
     .from('user')
@@ -90,6 +102,7 @@ export async function updateUserSettings(uid: string, settings: UserSettings) {
       places: uniqueInts(settings.places),
       places_radius: clamp(settings.placesRadius, DEFAULT_PLACES_RADIUS),
       daily_invite_limit: clamp(settings.dailyInviteLimit, DEFAULT_DAILY_INVITE_LIMIT),
+      friends_only: asFriendsOnly(settings.friendsOnly),
     })
     .eq('id', uid);
 

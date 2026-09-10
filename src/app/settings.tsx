@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { RadioButton } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { WheelPicker } from '@/components/WheelPicker';
@@ -19,15 +18,25 @@ const NAVY = '#1a1530';
 const DANGER = '#ff7a7a';
 const PICKER_SPINNER = '#8e8e93';
 const LABEL_INK = '#e8e6ee';
+const MUTED_INK = '#c8c5d0';
 const PLACE_SURFACE = '#0a0910';
-const PLACE_ROW = '#16141f';
 const PLACE_INK = '#f4f2fa';
+const HAIRLINE = '#2a2738';
+const LIME_FILL = 'rgba(180, 245, 0, 0.14)';
 const PLACES = placesCatalog as [string, number][];
+const FRIENDS_ONLY_OPTIONS = [
+  { label: 'Friends', value: true },
+  { label: 'Anyone', value: false },
+] as const;
 
 function samePlaces(left: number[], right: number[]) {
   if (left.length !== right.length) return false;
   const lookup = new Set(left);
   return right.every(id => lookup.has(id));
+}
+
+function sameFriendsOnly(left: [boolean, boolean], right: [boolean, boolean]) {
+  return left[0] === right[0] && left[1] === right[1];
 }
 
 /** city_park -> City Park */
@@ -37,6 +46,45 @@ function placeLabel(value: string) {
     .filter(Boolean)
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+}
+
+type FriendsOnlyGroupProps = {
+  label: string;
+  value: boolean;
+  disabled: boolean;
+  onChange: (friendsOnly: boolean) => void;
+};
+
+function FriendsOnlyGroup({ label, value, disabled, onChange }: FriendsOnlyGroupProps) {
+  return (
+    <View accessibilityRole="radiogroup" accessibilityLabel={label} style={styles.friendsOnlyHost}>
+      <Text style={styles.sectionLabel}>{label}</Text>
+      <View style={styles.segmentTrack}>
+        {FRIENDS_ONLY_OPTIONS.map(option => {
+          const checked = value === option.value;
+
+          return (
+            <Pressable
+              key={option.label}
+              accessibilityRole="radio"
+              accessibilityLabel={option.label}
+              accessibilityState={{ checked, disabled }}
+              disabled={disabled}
+              onPress={() => onChange(option.value)}
+              style={({ pressed }) => [
+                styles.segment,
+                checked && styles.segmentSelected,
+                disabled && styles.controlDisabled,
+                pressed && !disabled && styles.pressed,
+              ]}
+            >
+              <Text style={[styles.segmentLabel, checked && styles.segmentLabelSelected]}>{option.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
 }
 
 export default function Settings() {
@@ -49,10 +97,17 @@ export default function Settings() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!uid) return;
+    if (!uid) {
+      setSaved(null);
+      setDraft(null);
+      setStatus('loading');
+      setError(null);
+      return;
+    }
 
     let cancelled = false;
     setStatus('loading');
+    setError(null);
 
     fetchUserSettings(uid).then(settings => {
       if (cancelled) return;
@@ -72,6 +127,7 @@ export default function Settings() {
     !!saved &&
     (draft.placesRadius !== saved.placesRadius ||
       draft.dailyInviteLimit !== saved.dailyInviteLimit ||
+      !sameFriendsOnly(draft.friendsOnly, saved.friendsOnly) ||
       !samePlaces(draft.places, saved.places));
   const saving = status === 'saving';
 
@@ -109,8 +165,6 @@ export default function Settings() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.card}>
-          <Text style={styles.heading}>Settings</Text>
-
           {status === 'loading' || !draft ? (
             <View style={styles.loading}>
               <ActivityIndicator color={PICKER_SPINNER} />
@@ -135,7 +189,6 @@ export default function Settings() {
                 <View style={styles.picker}>
                   <WheelPicker
                     label="Daily Invite Limit"
-                    labelAlign="right"
                     unit="invites"
                     value={draft.dailyInviteLimit}
                     min={SETTING_MIN}
@@ -147,43 +200,61 @@ export default function Settings() {
                   />
                 </View>
               </View>
-              <View style={styles.favoritePlacesHost}>
-                <Text style={styles.favoritePlacesLabel}>Favorite Places</Text>
-                <View style={styles.favoritePlaces}>
-
-                <View style={styles.placeList}>
-                  {PLACES.map(([name, id]) => {
-                    const checked = draft.places.includes(id);
-                    const label = placeLabel(name);
-
-                    return (
-                      <Pressable
-                        key={id}
-                        accessibilityRole="radio"
-                        accessibilityLabel={label}
-                        accessibilityState={{ checked, disabled: saving }}
-                        disabled={saving}
-                        onPress={() => togglePlace(id)}
-                        style={({ pressed }) => [
-                          styles.placeRow,
-                          saving && styles.placeRowDisabled,
-                          pressed && !saving && styles.pressed,
-                        ]}
-                      >
-                        <Text style={styles.placeName}>{label}</Text>
-                        <View style={styles.placeRadio}>
-                          <RadioButton
-                            value={String(id)}
-                            status={checked ? 'checked' : 'unchecked'}
-                            disabled={saving}
-                            color={PLACE_INK}
-                            uncheckedColor={PICKER_SPINNER}
-                          />
-                        </View>
-                      </Pressable>
-                    );
-                  })}
+              <View style={styles.pickers}>
+                <View style={styles.picker}>
+                  <FriendsOnlyGroup
+                    label="Send Invites To"
+                    value={draft.friendsOnly[0]}
+                    disabled={saving}
+                    onChange={send =>
+                      setDraft(current =>
+                        current ? { ...current, friendsOnly: [send, current.friendsOnly[1]] } : current,
+                      )
+                    }
+                  />
                 </View>
+                <View style={styles.picker}>
+                  <FriendsOnlyGroup
+                    label="Receive Invites From"
+                    value={draft.friendsOnly[1]}
+                    disabled={saving}
+                    onChange={receive =>
+                      setDraft(current =>
+                        current ? { ...current, friendsOnly: [current.friendsOnly[0], receive] } : current,
+                      )
+                    }
+                  />
+                </View>
+              </View>
+              <View style={styles.favoritePlacesHost}>
+                <Text style={styles.sectionLabel}>Favorite Places</Text>
+                <View style={styles.favoritePlaces}>
+                  <View style={styles.placeList}>
+                    {PLACES.map(([name, id]) => {
+                      const checked = draft.places.includes(id);
+                      const chip = placeLabel(name);
+
+                      return (
+                        <Pressable
+                          key={id}
+                          accessibilityRole="checkbox"
+                          accessibilityLabel={chip}
+                          accessibilityState={{ checked, disabled: saving }}
+                          disabled={saving}
+                          onPress={() => togglePlace(id)}
+                          style={({ pressed }) => [
+                            styles.placeChip,
+                            checked && styles.placeChipSelected,
+                            saving && styles.controlDisabled,
+                            pressed && !saving && styles.pressed,
+                          ]}
+                        >
+                          {checked ? <Text style={styles.placeCheck}>✓</Text> : null}
+                          <Text style={[styles.placeName, checked && styles.placeNameSelected]}>{chip}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
                 </View>
               </View>
 
@@ -198,14 +269,16 @@ export default function Settings() {
                   }}
                   style={({ pressed }) => [
                     styles.save,
-                    (!dirty || saving) && styles.saveDisabled,
+                    !dirty && styles.saveGhost,
                     pressed && dirty && !saving && styles.pressed,
                   ]}
                 >
                   {saving ? (
                     <ActivityIndicator color={NAVY} />
                   ) : (
-                    <Text style={styles.saveText}>{dirty ? 'Save changes' : 'Saved'}</Text>
+                    <Text style={[styles.saveText, !dirty && styles.saveTextGhost]}>
+                      {dirty ? 'Save changes' : 'Saved'}
+                    </Text>
                   )}
                 </Pressable>
 
@@ -222,32 +295,16 @@ export default function Settings() {
 const limeGlow = Platform.select({
   ios: {
     shadowColor: LIME,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
   },
   android: {
     shadowColor: LIME,
-    elevation: 16,
+    elevation: 6,
   },
   default: {
-    boxShadow: '0 0 16px 3px #b4f500, 0 0 48px 10px rgba(180, 245, 0, 0.55)',
-  },
-});
-
-const limeTextGlow = Platform.select({
-  ios: {
-    textShadowColor: LIME,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 16,
-  },
-  android: {
-    textShadowColor: LIME,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 16,
-  },
-  default: {
-    textShadow: `0 0 16px ${LIME}`,
+    boxShadow: `0 0 0 1px ${HAIRLINE}, 0 8px 24px rgba(180, 245, 0, 0.16)`,
   },
 });
 
@@ -266,17 +323,10 @@ const styles = StyleSheet.create({
     width: 1000,
     maxWidth: '100%',
     backgroundColor: NAVY,
-    borderRadius: 25,
+    borderRadius: 20,
     padding: 32,
-    gap: 28,
+    gap: 24,
     ...limeGlow,
-  },
-  heading: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: LIME,
-    textAlign: 'center',
-    ...limeTextGlow,
   },
   pickers: {
     flexDirection: 'row',
@@ -286,6 +336,43 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  friendsOnlyHost: {
+    width: '100%',
+    gap: 10,
+  },
+  sectionLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: LABEL_INK,
+    textAlign: 'center',
+  },
+  segmentTrack: {
+    flexDirection: 'row',
+    height: 40,
+    padding: 3,
+    borderRadius: 20,
+    backgroundColor: PLACE_SURFACE,
+    borderWidth: 1,
+    borderColor: HAIRLINE,
+  },
+  segment: {
+    flex: 1,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentSelected: {
+    backgroundColor: LIME_FILL,
+  },
+  segmentLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: MUTED_INK,
+  },
+  segmentLabelSelected: {
+    color: LIME,
+    fontWeight: '600',
+  },
   favoritePlacesHost: {
     width: '100%',
     gap: 10,
@@ -294,39 +381,49 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: PLACE_SURFACE,
     borderRadius: 12,
-    padding: 16,
-    gap: 8,
-  },
-  favoritePlacesLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: LABEL_INK,
-    textAlign: 'center',
+    borderWidth: 1,
+    borderColor: HAIRLINE,
+    padding: 12,
   },
   placeList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  placeRow: {
+  placeChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    minHeight: 44,
-    paddingLeft: 14,
-    paddingRight: 6,
-    borderRadius: 12,
-    backgroundColor: PLACE_ROW,
+    justifyContent: 'center',
+    flexGrow: 1,
+    flexBasis: 160,
+    minHeight: 36,
+    paddingHorizontal: 14,
+    gap: 6,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: HAIRLINE,
+    backgroundColor: 'transparent',
   },
-  placeRowDisabled: {
-    opacity: 0.5,
+  placeChipSelected: {
+    backgroundColor: LIME_FILL,
+    borderColor: LIME,
+  },
+  placeCheck: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: LIME,
   },
   placeName: {
-    fontSize: 15,
+    flexShrink: 1,
+    fontSize: 12,
+    fontWeight: '500',
     color: PLACE_INK,
   },
-  placeRadio: {
-    pointerEvents: 'none',
+  placeNameSelected: {
+    color: LIME,
+  },
+  controlDisabled: {
+    opacity: 0.5,
   },
   loading: {
     minHeight: 480,
@@ -334,24 +431,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: PLACE_SURFACE,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: HAIRLINE,
   },
   actions: {
     gap: 12,
   },
   save: {
-    height: 48,
-    borderRadius: 12,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: LIME,
+    borderWidth: 1,
+    borderColor: LIME,
   },
-  saveDisabled: {
-    opacity: 0.45,
+  saveGhost: {
+    backgroundColor: 'transparent',
+    borderColor: HAIRLINE,
   },
   saveText: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: NAVY,
+  },
+  saveTextGhost: {
+    color: MUTED_INK,
   },
   pressed: {
     opacity: 0.75,

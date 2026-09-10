@@ -6,22 +6,27 @@ const googleMark = require('@/assets/images/google-g.svg');
 export type GoogleSignInButtonProps = {
   busy: boolean;
   onPress: () => void;
+  label?: string;
 };
 
-/** Full-width Continue with Google control on the login card. */
-export function GoogleSignInButton({ busy, onPress }: GoogleSignInButtonProps) {
+/** Full-width Google control on the login card and profile link CTA. */
+export function GoogleSignInButton({
+  busy,
+  onPress,
+  label = 'Continue with Google',
+}: GoogleSignInButtonProps) {
   return (
     <View style={styles.host}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Continue with Google"
+        accessibilityLabel={label}
         accessibilityState={{ busy, disabled: busy }}
         disabled={busy}
         onPress={onPress}
         style={({ pressed }) => [styles.button, busy && styles.disabled, pressed && !busy && styles.pressed]}
       >
         <Image accessible={false} contentFit="contain" source={googleMark} style={styles.mark} />
-        <Text style={styles.label}>Continue with Google</Text>
+        <Text style={styles.label}>{label}</Text>
       </Pressable>
     </View>
   );

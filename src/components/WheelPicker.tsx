@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,7 +14,8 @@ const SURFACE = '#0a0910';
 const LABEL_INK = '#e8e6ee';
 const PICKER_INK = '#f4f2fa';
 const PICKER_SECONDARY = '#8e8e93';
-const SELECTION_FILL = 'rgba(244, 242, 250, 0.12)';
+const SELECTION_FILL = 'rgba(244, 242, 250, 0.08)';
+const HAIRLINE = '#2a2738';
 
 const ITEM_HEIGHT = 40;
 const VISIBLE_ROWS = 5;
@@ -26,7 +28,6 @@ const SETTLE_MS = 140;
 
 export type WheelPickerProps = {
   label: string;
-  labelAlign?: 'left' | 'right';
   value: number;
   min: number;
   max: number;
@@ -39,7 +40,6 @@ export type WheelPickerProps = {
 /** Dark rotor: a vertical list that snaps whole rows into a light selection band. */
 export function WheelPicker({
   label,
-  labelAlign = 'left',
   value,
   min,
   max,
@@ -155,7 +155,7 @@ export function WheelPicker({
 
   return (
     <View style={[styles.host, disabled && styles.disabled]}>
-      <Text style={[styles.label, { textAlign: labelAlign }]}>{label}</Text>
+      <Text style={styles.label}>{label}</Text>
 
       <View
         style={[styles.wheel, disabled && styles.wheelDisabled]}
@@ -201,6 +201,35 @@ export function WheelPicker({
         <EdgeScrim placement="top" />
         <EdgeScrim placement="bottom" />
       </View>
+
+      <View style={styles.steppers}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Decrease ${label}`}
+          disabled={disabled || display <= min}
+          onPress={() => nudge(-1)}
+          style={({ pressed }) => [
+            styles.stepper,
+            (disabled || display <= min) && styles.stepperDisabled,
+            pressed && !disabled && display > min && styles.stepperPressed,
+          ]}
+        >
+          <Text style={styles.stepperText}>−</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Increase ${label}`}
+          disabled={disabled || display >= max}
+          onPress={() => nudge(1)}
+          style={({ pressed }) => [
+            styles.stepper,
+            (disabled || display >= max) && styles.stepperDisabled,
+            pressed && !disabled && display < max && styles.stepperPressed,
+          ]}
+        >
+          <Text style={styles.stepperText}>+</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -240,14 +269,17 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   label: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: LABEL_INK,
+    textAlign: 'center',
   },
   wheel: {
     height: WHEEL_HEIGHT,
     borderRadius: 12,
     backgroundColor: SURFACE,
+    borderWidth: 1,
+    borderColor: HAIRLINE,
     overflow: 'hidden',
     justifyContent: 'center',
     // Inert on native; on web this inherits down to every row.
@@ -255,6 +287,34 @@ const styles = StyleSheet.create({
   },
   wheelDisabled: {
     cursor: 'auto',
+  },
+  steppers: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  stepper: {
+    flex: 1,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: SURFACE,
+    borderWidth: 1,
+    borderColor: HAIRLINE,
+    cursor: 'pointer',
+  },
+  stepperDisabled: {
+    opacity: 0.4,
+    cursor: 'auto',
+  },
+  stepperPressed: {
+    opacity: 0.75,
+  },
+  stepperText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: PICKER_INK,
+    lineHeight: 24,
   },
   band: {
     position: 'absolute',

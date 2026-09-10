@@ -1,11 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createClient, type Provider } from '@supabase/supabase-js';
+import { createClient, type Provider, type User, type UserIdentity } from '@supabase/supabase-js';
 import { makeRedirectUri } from 'expo-auth-session';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 
 const IS_WEB = Platform.OS === 'web';
+const PENDING_LINK_KEY = 'pending-identity-link';
 
 if (!IS_WEB) {
   // supabase-js needs a spec-compliant URL implementation on native.
@@ -40,6 +41,78 @@ export const supabase = createClient(
     },
   },
 );
+
+export type LinkableProvider = 'facebook' | 'google';
+
+export type LinkedProviders = {
+  facebook: boolean;
+  google: boolean;
+};
+
+export const FACEBOOK_FEATURE_ALERT = 'Link your Facebook account to access this feature.';
+export const GOOGLE_FEATURE_ALERT = 'Link your Google account to access this feature.';
+
+export class EmailMismatchError extends Error {
+  constructor(provider: LinkableProvider) {
+    const name = provider === 'google' ? 'Google' : 'Facebook';
+    super(
+      `This ${name} account uses a different email than your FriendShip account. Link the account that uses the same email.`,
+    );
+    this.name = 'EmailMismatchError';
+  }
+}
+
+export function linkedProvidersFromUser(user?: User | null): LinkedProviders {
+  const providers = new Set<string>();
+
+  for (const identity of user?.identities ?? []) {
+    if (identity.provider) providers.add(identity.provider);
+  }
+
+  const meta = user?.app_metadata ?? {};
+  if (typeof meta.provider === 'string') providers.add(meta.provider);
+  if (Array.isArray(meta.providers)) {
+    for (const provider of meta.providers) {
+      if (typeof provider === 'string') providers.add(provider);
+    }
+  }
+
+  return {
+    facebook: providers.has('facebook'),
+    google: providers.has('google'),
+  };
+}
+
+function normalizeEmail(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const email = value.trim().toLowerCase();
+  return email || null;
+}
+
+function identityEmail(identity: UserIdentity): string | null {
+  return normalizeEmail(identity.identity_data?.email);
+}
+
+function accountEmail(user: User, excludeProvider: LinkableProvider): string | null {
+  const fromUser = normalizeEmail(user.email);
+  if (fromUser) return fromUser;
+
+  for (const identity of user.identities ?? []) {
+    if (identity.provider === excludeProvider) continue;
+    const email = identityEmail(identity);
+    if (email) return email;
+  }
+
+  return null;
+}
+
+function scopesFor(provider: LinkableProvider) {
+  return provider === 'facebook' ? 'email,public_profile,user_birthday' : 'openid email profile';
+}
+
+function isLinkableProvider(value: string | null): value is LinkableProvider {
+  return value === 'facebook' || value === 'google';
+}
 
 /** Reads params from the query string and the hash fragment of an OAuth redirect. */
 function readAuthParams(url: string) {
@@ -102,38 +175,104 @@ export function subscribeToAuthRedirects() {
   return () => subscription.remove();
 }
 
-async function signInWithProvider(provider: Provider, scopes: string) {
+async function startOAuth(provider: Provider, scopes: string, mode: 'signIn' | 'link') {
   const redirectTo = makeRedirectUri();
+  const options = {
+    redirectTo,
+    scopes,
+    skipBrowserRedirect: !IS_WEB,
+  };
 
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider,
-    options: {
-      redirectTo,
-      scopes,
-      // Native has no browser to redirect, so we open the URL ourselves.
-      skipBrowserRedirect: !IS_WEB,
-    },
-  });
+  const { data, error } =
+    mode === 'link'
+      ? await supabase.auth.linkIdentity({ provider, options })
+      : await supabase.auth.signInWithOAuth({ provider, options });
 
   if (error) throw error;
   if (IS_WEB) return;
 
   const result = await WebBrowser.openAuthSessionAsync(data.url ?? '', redirectTo);
 
-  if (result.type !== 'success') return;
+  if (result.type !== 'success') {
+    if (mode === 'link') await storage.removeItem(PENDING_LINK_KEY);
+    return;
+  }
 
   await createSessionFromUrl(result.url);
 }
 
+async function unlinkProvider(provider: LinkableProvider) {
+  const { data, error } = await supabase.auth.getUserIdentities();
+  if (error) throw error;
+
+  const identity = data.identities.find(item => item.provider === provider);
+  if (!identity) return;
+
+  const { error: unlinkError } = await supabase.auth.unlinkIdentity(identity);
+  if (unlinkError) throw unlinkError;
+}
+
+export async function assertLinkedEmailsMatch(user: User, provider: LinkableProvider) {
+  const linked = user.identities?.find(identity => identity.provider === provider);
+  const linkedEmail = linked ? identityEmail(linked) : null;
+  const existingEmail = accountEmail(user, provider);
+
+  if (!linkedEmail || !existingEmail || linkedEmail === existingEmail) return;
+
+  await unlinkProvider(provider);
+  throw new EmailMismatchError(provider);
+}
+
+/** Consumes a pending link (web redirect) and unlinks if the emails do not match. */
+let finalizeLock = false;
+
+export async function finalizePendingIdentityLink(user: User | null | undefined) {
+  if (!user || finalizeLock) return;
+  finalizeLock = true;
+
+  try {
+    const pending = await storage.getItem(PENDING_LINK_KEY);
+    if (!isLinkableProvider(pending)) return;
+
+    await storage.removeItem(PENDING_LINK_KEY);
+    await assertLinkedEmailsMatch(user, pending);
+  } finally {
+    finalizeLock = false;
+  }
+}
+
 export async function signInWithFacebook() {
-  return signInWithProvider('facebook', 'email,public_profile,user_birthday');
+  return startOAuth('facebook', scopesFor('facebook'), 'signIn');
 }
 
 export async function signInWithGoogle() {
-  return signInWithProvider('google', 'openid email profile');
+  return startOAuth('google', scopesFor('google'), 'signIn');
+}
+
+/** Adds Google or Facebook to the signed-in user. Does not start a new login session. */
+export async function linkAccount(provider: LinkableProvider) {
+  await storage.setItem(PENDING_LINK_KEY, provider);
+
+  try {
+    await startOAuth(provider, scopesFor(provider), 'link');
+  } catch (cause) {
+    await storage.removeItem(PENDING_LINK_KEY);
+    throw cause;
+  }
+
+  // Web redirects away; the next session load runs finalizePendingIdentityLink.
+  if (IS_WEB) return;
+
+  const { data } = await supabase.auth.getUser();
+  if (data.user) await finalizePendingIdentityLink(data.user);
 }
 
 export async function signOut() {
+  await storage.removeItem(PENDING_LINK_KEY);
+
   const { error } = await supabase.auth.signOut();
-  if (error) throw error;
+  if (!error) return;
+
+  const { error: localError } = await supabase.auth.signOut({ scope: 'local' });
+  if (localError) throw localError;
 }

@@ -2,13 +2,13 @@ import { Image } from 'expo-image';
 import {
   DarkTheme,
   DefaultTheme,
-  Link,
   Stack,
   ThemeProvider,
   usePathname,
   useRouter,
   type Href,
 } from 'expo-router';
+import { useCallback } from 'react';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import {
   Appbar,
@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SplashScreenController } from '@/components/splash-screen-controller';
 import { useAuthContext } from '@/hooks/use-auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { FACEBOOK_FEATURE_ALERT, GOOGLE_FEATURE_ALERT } from '@/lib/supabase';
 import AuthProvider from '@/providers/auth-provider';
 
 const IS_WEB = Platform.OS === 'web';
@@ -49,24 +50,6 @@ const limeTextGlow = Platform.select({
 });
 
 const TABS = [
-  {
-    href: '/calendar',
-    label: 'Calendar',
-    focusedIcon: 'calendar-month',
-    unfocusedIcon: 'calendar-month-outline',
-  },
-  {
-    href: '/chat',
-    label: 'Chat',
-    focusedIcon: 'chat',
-    unfocusedIcon: 'chat-outline',
-  },
-  {
-    href: '/events',
-    label: 'Events',
-    focusedIcon: 'map-marker',
-    unfocusedIcon: 'map-marker-outline',
-  },
   {
     href: '/friends',
     label: 'Friends',
@@ -165,9 +148,6 @@ function RootNavigator() {
           <Stack.Screen name="index" />
 
           <Stack.Protected guard={isLoggedIn}>
-            <Stack.Screen name="calendar" />
-            <Stack.Screen name="chat" />
-            <Stack.Screen name="events" />
             <Stack.Screen name="friends" />
             <Stack.Screen name="invites" />
             <Stack.Screen name="profile" />
@@ -184,9 +164,34 @@ function RootNavigator() {
   );
 }
 
+function useOpenTab() {
+  const { linkedProviders, setFeatureAlert } = useAuthContext();
+  const router = useRouter();
+
+  return useCallback(
+    (href: Href) => {
+      if (href === '/friends' && !linkedProviders.facebook) {
+        setFeatureAlert(FACEBOOK_FEATURE_ALERT);
+        router.replace('/profile');
+        return;
+      }
+
+      if (href === '/calendar' && !linkedProviders.google) {
+        setFeatureAlert(GOOGLE_FEATURE_ALERT);
+        router.replace('/profile');
+        return;
+      }
+
+      router.replace(href);
+    },
+    [linkedProviders.facebook, linkedProviders.google, router, setFeatureAlert],
+  );
+}
+
 function DesktopNavBar() {
   const pathname = usePathname();
   const theme = useTheme();
+  const openTab = useOpenTab();
 
   return (
     <Appbar.Header
@@ -209,19 +214,19 @@ function DesktopNavBar() {
           const focused = isTabPath(pathname, tab.href);
 
           return (
-            <Link key={tab.href} href={tab.href} replace asChild>
-              <Button
-                compact
-                mode={focused ? 'contained-tonal' : 'text'}
-                icon={focused ? tab.focusedIcon : tab.unfocusedIcon}
-                textColor={focused ? "#b4f500" : theme.colors.onSurfaceVariant}
-                accessibilityRole="tab"
-                accessibilityLabel={tab.label}
-                accessibilityState={{ selected: focused }}
-              >
-                {tab.label}
-              </Button>
-            </Link>
+            <Button
+              key={tab.href}
+              compact
+              mode={focused ? 'contained-tonal' : 'text'}
+              icon={focused ? tab.focusedIcon : tab.unfocusedIcon}
+              textColor={focused ? "#b4f500" : theme.colors.onSurfaceVariant}
+              accessibilityRole="tab"
+              accessibilityLabel={tab.label}
+              accessibilityState={{ selected: focused }}
+              onPress={() => openTab(tab.href)}
+            >
+              {tab.label}
+            </Button>
           );
         })}
       </ScrollView>
@@ -231,8 +236,8 @@ function DesktopNavBar() {
 
 function MobileNavBar() {
   const pathname = usePathname();
-  const router = useRouter();
   const insets = useSafeAreaInsets();
+  const openTab = useOpenTab();
   const index = Math.max(
     0,
     TABS.findIndex(tab => isTabPath(pathname, tab.href)),
@@ -254,7 +259,7 @@ function MobileNavBar() {
       }}
       safeAreaInsets={insets}
       onTabPress={({ route }) => {
-        router.replace(route.key as Href);
+        openTab(route.key as Href);
       }}
     />
   );

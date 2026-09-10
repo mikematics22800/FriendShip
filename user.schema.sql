@@ -3,6 +3,6 @@ create table public.user (
   places smallint[] null default '{}'::smallint[],
   places_radius smallint null default 10,
   daily_invite_limit smallint null default 10,
-  friends_only boolean not null default false,
+  friends_only boolean[] not null default array[false, false]::boolean[],
   constraint user_pkey primary key (id)
 ) TABLESPACE pg_default;

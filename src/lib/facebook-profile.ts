@@ -1,7 +1,8 @@
-const GRAPH_API_TOKEN = process.env.EXPO_PUBLIC_GRAPH_API_TOKEN ?? '';
+import type { Session, User } from '@supabase/supabase-js';
+
 const GRAPH_FIELDS = 'id,name,email,birthday,picture.width(512).height(512)';
 
-export type FacebookProfile = {
+export type AuthProfile = {
   name: string | null;
   email: string | null;
   pictureUrl: string | null;
@@ -26,6 +27,11 @@ type GraphUser = {
   };
 };
 
+function metaString(meta: Record<string, unknown>, key: string): string | null {
+  const value = meta[key];
+  return typeof value === 'string' && value ? value : null;
+}
+
 /** Facebook birthday is MM/DD/YYYY, MM/DD, or YYYY. Only a full date is displayed. */
 export function parseFacebookBirthday(birthday?: string | null): string | null {
   if (!birthday) return null;
@@ -43,15 +49,24 @@ export function parseFacebookBirthday(birthday?: string | null): string | null {
   return iso;
 }
 
-export async function fetchFacebookProfile(): Promise<FacebookProfile | null> {
-  if (!GRAPH_API_TOKEN) {
-    console.warn('EXPO_PUBLIC_GRAPH_API_TOKEN is missing; skipping Graph API profile fetch.');
-    return null;
-  }
+/** Name, email, and photo from the Supabase user (Google, or Facebook after token refresh). */
+export function profileFromUser(user: User): AuthProfile {
+  const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+
+  return {
+    name: metaString(meta, 'name') ?? metaString(meta, 'full_name') ?? metaString(meta, 'fullName'),
+    email: user.email ?? metaString(meta, 'email'),
+    pictureUrl: metaString(meta, 'picture') ?? metaString(meta, 'avatar_url'),
+    dateOfBirth: parseFacebookBirthday(metaString(meta, 'birthday')),
+  };
+}
+
+export async function fetchFacebookProfile(accessToken: string): Promise<AuthProfile | null> {
+  if (!accessToken) return null;
 
   const url = new URL('https://graph.facebook.com/v22.0/me');
   url.searchParams.set('fields', GRAPH_FIELDS);
-  url.searchParams.set('access_token', GRAPH_API_TOKEN);
+  url.searchParams.set('access_token', accessToken);
 
   const response = await fetch(url.toString());
   const payload = (await response.json()) as GraphUser;
@@ -68,3 +83,15 @@ export async function fetchFacebookProfile(): Promise<FacebookProfile | null> {
     dateOfBirth: parseFacebookBirthday(payload.birthday),
   };
 }
+/** Facebook Graph when this session has a provider token; otherwise user_metadata. */
+export async function loadSessionProfile(session: Session): Promise<AuthProfile | null> {
+  const provider = session.user.app_metadata?.provider ?? session.user.identities?.[0]?.provider;
+
+  if (provider === 'facebook' && session.provider_token) {
+    const graph = await fetchFacebookProfile(session.provider_token);
+    if (graph) return graph;
+  }
+
+  return profileFromUser(session.user);
+}
+

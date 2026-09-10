@@ -7,15 +7,20 @@ const facebookMark = require('@/assets/images/fb-white.svg');
 export type FacebookSignInButtonProps = {
   busy: boolean;
   onPress: () => void;
+  label?: string;
 };
 
-/** Full-width Continue with Facebook control on the login card. */
-export function FacebookSignInButton({ busy, onPress }: FacebookSignInButtonProps) {
+/** Full-width Facebook control on the login card and profile link CTA. */
+export function FacebookSignInButton({
+  busy,
+  onPress,
+  label = 'Continue with Facebook',
+}: FacebookSignInButtonProps) {
   return (
     <View style={styles.host}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Continue with Facebook"
+        accessibilityLabel={label}
         accessibilityState={{ busy, disabled: busy }}
         disabled={busy}
         onPress={onPress}
@@ -27,7 +32,7 @@ export function FacebookSignInButton({ busy, onPress }: FacebookSignInButtonProp
           source={facebookMark}
           style={styles.mark}
         />
-        <Text style={styles.label}>Continue with Facebook</Text>
+        <Text style={styles.label}>{label}</Text>
       </Pressable>
     </View>
   );

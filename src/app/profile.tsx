@@ -1,8 +1,12 @@
 import { Image } from 'expo-image';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { FacebookSignInButton } from '@/components/FacebookButton';
+import { GoogleSignInButton } from '@/components/GoogleButton';
 import { useAuthContext } from '@/hooks/use-auth-context';
+import type { LinkableProvider } from '@/lib/supabase';
 
 const LIME = '#b4f500';
 const NAVY = '#1a1530';
@@ -19,22 +23,67 @@ function formatDateOfBirth(value?: string | null) {
 }
 
 export default function Profile() {
-  const { profile, signOut } = useAuthContext();
+  const { claims, profile, signOut, linkedProviders, linkAccount, featureAlert, setFeatureAlert } =
+    useAuthContext();
+  const [busy, setBusy] = useState(false);
+  const uid = typeof claims?.sub === 'string' ? claims.sub : undefined;
   const name = profile?.name ?? null;
   const photoURL = profile?.pictureUrl ?? null;
   const email = profile?.email ?? null;
   const dateOfBirth = formatDateOfBirth(profile?.dateOfBirth);
+  const showGoogleLink = linkedProviders.facebook && !linkedProviders.google;
+  const showFacebookLink = linkedProviders.google && !linkedProviders.facebook;
+
+  useEffect(() => {
+    if (!featureAlert) return;
+    Alert.alert(featureAlert);
+    setFeatureAlert(null);
+  }, [featureAlert, setFeatureAlert]);
+
+  const handleLink = useCallback(
+    async (provider: LinkableProvider) => {
+      setBusy(true);
+      try {
+        await linkAccount(provider);
+      } catch (cause) {
+        Alert.alert(cause instanceof Error ? cause.message : 'Could not link this account.');
+      } finally {
+        setBusy(false);
+      }
+    },
+    [linkAccount],
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.container}>
         <View style={styles.card}>
           <View style={styles.profile}>
-            <Avatar photoURL={photoURL} name={name} />
+            <Avatar uid={uid} photoURL={photoURL} name={name} />
             <Text style={styles.name}>{name ?? 'Unnamed account'}</Text>
             {email ? <Text style={styles.email}>{email}</Text> : null}
             {dateOfBirth ? <Text style={styles.dob}>{dateOfBirth}</Text> : null}
           </View>
+
+          {showGoogleLink ? (
+            <GoogleSignInButton
+              busy={busy}
+              label="Link with Google"
+              onPress={() => {
+                void handleLink('google');
+              }}
+            />
+          ) : null}
+
+          {showFacebookLink ? (
+            <FacebookSignInButton
+              busy={busy}
+              label="Link with Facebook"
+              onPress={() => {
+                void handleLink('facebook');
+              }}
+            />
+          ) : null}
 
           <Pressable
             onPress={() => {
@@ -42,7 +91,7 @@ export default function Profile() {
             }}
             style={({ pressed }) => [styles.signOut, pressed && styles.pressed]}
           >
-            <Text style={styles.signOutText}>Sign out</Text>
+            <Text style={styles.signOutText}>Sign Out</Text>
           </Pressable>
         </View>
       </View>
@@ -50,9 +99,26 @@ export default function Profile() {
   );
 }
 
-function Avatar({ photoURL, name }: { photoURL?: string | null; name?: string | null }) {
+function Avatar({
+  uid,
+  photoURL,
+  name,
+}: {
+  uid?: string;
+  photoURL?: string | null;
+  name?: string | null;
+}) {
   if (photoURL) {
-    return <Image source={photoURL} style={styles.avatar} contentFit="cover" transition={150} />;
+    return (
+      <Image
+        key={uid ?? photoURL}
+        recyclingKey={uid ?? photoURL}
+        source={photoURL}
+        style={styles.avatar}
+        contentFit="cover"
+        transition={150}
+      />
+    );
   }
 
   const initials = (name ?? '?')
