@@ -5,7 +5,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WheelPicker } from '@/components/WheelPicker';
 import { useAuthContext } from '@/hooks/use-auth-context';
 import {
+  AGE_MAX,
+  AGE_MIN,
   fetchUserSettings,
+  PARTY_MAX,
+  PARTY_MIN,
   SETTING_MAX,
   SETTING_MIN,
   updateUserSettings,
@@ -35,7 +39,7 @@ function samePlaces(left: number[], right: number[]) {
   return right.every(id => lookup.has(id));
 }
 
-function sameFriendsOnly(left: [boolean, boolean], right: [boolean, boolean]) {
+function sameAgeRange(left: [number, number], right: [number, number]) {
   return left[0] === right[0] && left[1] === right[1];
 }
 
@@ -127,7 +131,9 @@ export default function Settings() {
     !!saved &&
     (draft.placesRadius !== saved.placesRadius ||
       draft.dailyInviteLimit !== saved.dailyInviteLimit ||
-      !sameFriendsOnly(draft.friendsOnly, saved.friendsOnly) ||
+      draft.friendsOnly !== saved.friendsOnly ||
+      draft.partySize !== saved.partySize ||
+      !sameAgeRange(draft.ageRange, saved.ageRange) ||
       !samePlaces(draft.places, saved.places));
   const saving = status === 'saving';
 
@@ -172,20 +178,16 @@ export default function Settings() {
           ) : (
             <>
               <View style={styles.pickers}>
-                <View style={styles.picker}>
-                  <WheelPicker
-                    label="Places Radius"
-                    unit="km"
-                    value={draft.placesRadius}
-                    min={SETTING_MIN}
-                    max={SETTING_MAX}
+              <View style={styles.friendsOnlyColumn}>
+                  <FriendsOnlyGroup
+                    label="Seeking Plans With"
+                    value={draft.friendsOnly}
                     disabled={saving}
-                    onChange={placesRadius =>
-                      setDraft(current => (current ? { ...current, placesRadius } : current))
+                    onChange={friendsOnly =>
+                      setDraft(current => (current ? { ...current, friendsOnly } : current))
                     }
                   />
                 </View>
-
                 <View style={styles.picker}>
                   <WheelPicker
                     label="Daily Invite Limit"
@@ -202,26 +204,60 @@ export default function Settings() {
               </View>
               <View style={styles.pickers}>
                 <View style={styles.picker}>
-                  <FriendsOnlyGroup
-                    label="Send Invites To"
-                    value={draft.friendsOnly[0]}
+                  <WheelPicker
+                    label="Min Age"
+                    unit="yrs"
+                    value={draft.ageRange[0]}
+                    min={AGE_MIN}
+                    max={draft.ageRange[1]}
                     disabled={saving}
-                    onChange={send =>
+                    onChange={minAge =>
                       setDraft(current =>
-                        current ? { ...current, friendsOnly: [send, current.friendsOnly[1]] } : current,
+                        current ? { ...current, ageRange: [minAge, current.ageRange[1]] } : current,
                       )
                     }
                   />
                 </View>
                 <View style={styles.picker}>
-                  <FriendsOnlyGroup
-                    label="Receive Invites From"
-                    value={draft.friendsOnly[1]}
+                  <WheelPicker
+                    label="Max Age"
+                    unit="yrs"
+                    value={draft.ageRange[1]}
+                    min={draft.ageRange[0]}
+                    max={AGE_MAX}
                     disabled={saving}
-                    onChange={receive =>
+                    onChange={maxAge =>
                       setDraft(current =>
-                        current ? { ...current, friendsOnly: [current.friendsOnly[0], receive] } : current,
+                        current ? { ...current, ageRange: [current.ageRange[0], maxAge] } : current,
                       )
+                    }
+                  />
+                </View>
+              </View>
+              <View style={styles.pickers}>
+                <View style={styles.picker}>
+                  <WheelPicker
+                    label="Party Size"
+                    unit="people"
+                    value={draft.partySize}
+                    min={PARTY_MIN}
+                    max={PARTY_MAX}
+                    disabled={saving}
+                    onChange={partySize =>
+                      setDraft(current => (current ? { ...current, partySize } : current))
+                    }
+                  />
+                </View>
+                <View style={styles.picker}>
+                  <WheelPicker
+                    label="Places Radius"
+                    unit="km"
+                    value={draft.placesRadius}
+                    min={SETTING_MIN}
+                    max={SETTING_MAX}
+                    disabled={saving}
+                    onChange={placesRadius =>
+                      setDraft(current => (current ? { ...current, placesRadius } : current))
                     }
                   />
                 </View>
@@ -336,13 +372,19 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  friendsOnlyColumn: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'flex-start',
+  },
   friendsOnlyHost: {
     width: '100%',
-    gap: 10,
+    gap: 8,
   },
   sectionLabel: {
     fontSize: 18,
     fontWeight: '700',
+    lineHeight: 24,
     color: LABEL_INK,
     textAlign: 'center',
   },
