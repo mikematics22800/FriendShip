@@ -26,6 +26,12 @@
         {
           "backgroundColor": "#208AEF"
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "FriendShip uses your location to find friends and plans near you."
+        }
       ]
     ],
     "experiments": {

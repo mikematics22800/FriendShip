@@ -3,6 +3,7 @@ import { PropsWithChildren, useCallback, useEffect, useState } from 'react';
 
 import { AuthContext } from '@/hooks/use-auth-context';
 import { loadSessionProfile, type AuthProfile } from '@/lib/facebook-profile';
+import { requestUserLocation, type UserLocation } from '@/lib/location';
 import {
   EmailMismatchError,
   finalizePendingIdentityLink,
@@ -30,6 +31,7 @@ function claimsFromSession(session: Session | null): Record<string, any> | null 
 export default function AuthProvider({ children }: PropsWithChildren) {
   const [claims, setClaims] = useState<Record<string, any> | undefined | null>();
   const [profile, setProfile] = useState<AuthProfile | null | undefined>();
+  const [location, setLocation] = useState<UserLocation | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [linkedProviders, setLinkedProviders] = useState<LinkedProviders>(NO_PROVIDERS);
   const [featureAlert, setFeatureAlert] = useState<string | null>(null);
@@ -83,7 +85,7 @@ export default function AuthProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
-  // After login: ensure a public.user row exists, then load this session's profile (never written to user).
+  // After login: ensure a public.user row exists, load profile, then request location (kept in memory only).
   useEffect(() => {
     if (!sessionReady) return;
 
@@ -91,11 +93,13 @@ export default function AuthProvider({ children }: PropsWithChildren) {
 
     if (!uid) {
       setProfile(null);
+      setLocation(null);
       setLinkedProviders(NO_PROVIDERS);
       return;
     }
 
     setProfile(undefined);
+    setLocation(null);
 
     const afterLogin = async () => {
       await ensureUserRow(uid);
@@ -114,6 +118,11 @@ export default function AuthProvider({ children }: PropsWithChildren) {
         console.warn('Could not load profile:', cause);
         if (!cancelled) setProfile(null);
       }
+
+      if (cancelled) return;
+
+      const coords = await requestUserLocation();
+      if (!cancelled) setLocation(coords);
     };
 
     void afterLogin();
@@ -131,6 +140,7 @@ export default function AuthProvider({ children }: PropsWithChildren) {
 
   const signOut = useCallback(async () => {
     setProfile(null);
+    setLocation(null);
     setClaims(null);
     setLinkedProviders(NO_PROVIDERS);
     setFeatureAlert(null);
@@ -142,6 +152,7 @@ export default function AuthProvider({ children }: PropsWithChildren) {
       value={{
         claims,
         profile,
+        location,
         isLoading,
         isLoggedIn: !!claims,
         linkedProviders,

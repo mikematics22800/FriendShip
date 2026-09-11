@@ -1,11 +1,13 @@
 import { createContext, useContext } from 'react';
 
 import type { AuthProfile } from '@/lib/facebook-profile';
+import type { UserLocation } from '@/lib/location';
 import type { LinkableProvider, LinkedProviders } from '@/lib/supabase';
 
 export type AuthData = {
   claims?: Record<string, any> | null;
   profile?: AuthProfile | null;
+  location: UserLocation | null;
   isLoading: boolean;
   isLoggedIn: boolean;
   linkedProviders: LinkedProviders;
@@ -20,6 +22,7 @@ const NO_PROVIDERS: LinkedProviders = { facebook: false, google: false };
 export const AuthContext = createContext<AuthData>({
   claims: undefined,
   profile: undefined,
+  location: null,
   isLoading: true,
   isLoggedIn: false,
   linkedProviders: NO_PROVIDERS,
