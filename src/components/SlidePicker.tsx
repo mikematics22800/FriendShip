@@ -8,28 +8,30 @@ const VALUE_INK = '#f4f2fa';
 const MUTED_INK = '#8e8e93';
 const HAIRLINE = '#2a2738';
 
-export type WheelPickerProps = {
+export type SlidePickerProps = {
   label: string;
   value: number;
   min: number;
   max: number;
   step?: number;
   unit?: string;
+  formatValue?: (value: number) => string;
   disabled?: boolean;
   onChange: (value: number) => void;
 };
 
 /** Compact lime track with the live value beside the label. */
-export function WheelPicker({
+export function SlidePicker({
   label,
   value,
   min,
   max,
   step = 1,
   unit,
+  formatValue,
   disabled = false,
   onChange,
-}: WheelPickerProps) {
+}: SlidePickerProps) {
   const snap = useCallback(
     (raw: number) => {
       const stepped = min + Math.round((raw - min) / step) * step;
@@ -39,7 +41,8 @@ export function WheelPicker({
   );
 
   const display = snap(value);
-  const readout = unit ? `${display} ${unit}` : `${display}`;
+  const labelFor = formatValue ?? ((next: number) => (unit ? `${next} ${unit}` : `${next}`));
+  const readout = labelFor(display);
 
   const nudge = (direction: 1 | -1) => {
     const next = snap(display + direction * step);
@@ -83,8 +86,8 @@ export function WheelPicker({
       />
 
       <View style={styles.range}>
-        <Text style={styles.caption}>{min}</Text>
-        <Text style={styles.caption}>{max}</Text>
+        <Text style={styles.caption}>{labelFor(min)}</Text>
+        <Text style={styles.caption}>{labelFor(max)}</Text>
       </View>
     </View>
   );

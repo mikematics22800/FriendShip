@@ -6,8 +6,36 @@ export const AGE_MIN = 18;
 export const AGE_MAX = 99;
 export const PARTY_MIN = 5;
 export const PARTY_MAX = 25;
+export const TIME_MIN = 0;
+export const TIME_MAX = 24;
+export const TIME_STEP = 0.25;
+
+/** Rounds to 15-minute hours in 0–24 (24 is end-of-day midnight). */
+export function snapTime(value: number | null | undefined, fallback = TIME_MIN): number {
+  const candidate = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  const minutes = Math.round(candidate * 60);
+  const stepMinutes = Math.round(TIME_STEP * 60);
+  const snappedMinutes = Math.round(minutes / stepMinutes) * stepMinutes;
+  return Math.min(TIME_MAX, Math.max(TIME_MIN, snappedMinutes / 60));
+}
+
+/** 0 and 24 -> 12:00 AM, 9.25 -> 9:15 AM */
+export function formatHour(hour: number): string {
+  const snapped = snapTime(hour);
+  if (snapped >= TIME_MAX) return '12:00 AM';
+
+  const totalMinutes = Math.round(snapped * 60);
+  const wrapped = ((totalMinutes % 1440) + 1440) % 1440;
+  const hour24 = Math.floor(wrapped / 60);
+  const minute = wrapped % 60;
+  const period = hour24 < 12 ? 'AM' : 'PM';
+  const twelve = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return `${twelve}:${String(minute).padStart(2, '0')} ${period}`;
+}
 
 export type AgeRange = [number, number];
+export type HourRange = [number, number];
+export type Availability = [HourRange, HourRange, HourRange, HourRange, HourRange, HourRange, HourRange];
 
 export type UserSettings = {
   places: number[];
@@ -16,6 +44,7 @@ export type UserSettings = {
   friendsOnly: boolean;
   ageRange: AgeRange;
   partySize: number;
+  availability: Availability;
 };
 
 const DEFAULT_PLACES: number[] = [];
@@ -24,6 +53,15 @@ const DEFAULT_DAILY_INVITE_LIMIT = SETTING_MIN;
 const DEFAULT_FRIENDS_ONLY = false;
 const DEFAULT_AGE_RANGE: AgeRange = [AGE_MIN, AGE_MAX];
 const DEFAULT_PARTY_SIZE = 10;
+const DEFAULT_AVAILABILITY: Availability = [
+  [TIME_MIN, TIME_MAX],
+  [TIME_MIN, TIME_MAX],
+  [TIME_MIN, TIME_MAX],
+  [TIME_MIN, TIME_MAX],
+  [TIME_MIN, TIME_MAX],
+  [TIME_MIN, TIME_MAX],
+  [TIME_MIN, TIME_MAX],
+];
 
 const ensuring = new Set<string>();
 
@@ -56,6 +94,26 @@ function asAgeRange(value: unknown): AgeRange {
   const min = clamp(raw[0], DEFAULT_AGE_RANGE[0], AGE_MIN, AGE_MAX);
   const max = clamp(raw[1], DEFAULT_AGE_RANGE[1], AGE_MIN, AGE_MAX);
   return min <= max ? [min, max] : [max, min];
+}
+
+function asHourRange(value: unknown): HourRange {
+  const raw = Array.isArray(value) ? value : DEFAULT_AVAILABILITY[0];
+  const min = snapTime(raw[0], TIME_MIN);
+  const max = snapTime(raw[1], TIME_MAX);
+  return min <= max ? [min, max] : [max, min];
+}
+
+function asAvailability(value: unknown): Availability {
+  const raw = Array.isArray(value) ? value : DEFAULT_AVAILABILITY;
+  return [
+    asHourRange(raw[0]),
+    asHourRange(raw[1]),
+    asHourRange(raw[2]),
+    asHourRange(raw[3]),
+    asHourRange(raw[4]),
+    asHourRange(raw[5]),
+    asHourRange(raw[6]),
+  ];
 }
 
 /** Creates the public.user row for this auth UID if it does not already exist. */
@@ -96,7 +154,7 @@ export async function ensureUserRow(uid: string) {
 export async function fetchUserSettings(uid: string): Promise<UserSettings> {
   const { data, error } = await supabase
     .from('user')
-    .select('places, places_radius, max_daily_invites, friends_only, age_range, party_size')
+    .select('places, places_radius, max_daily_invites, friends_only, age_range, party_size, availability')
     .eq('id', uid)
     .maybeSingle();
 
@@ -111,6 +169,7 @@ export async function fetchUserSettings(uid: string): Promise<UserSettings> {
     friendsOnly: asFriendsOnly(data?.friends_only),
     ageRange: asAgeRange(data?.age_range),
     partySize: clamp(data?.party_size, DEFAULT_PARTY_SIZE, PARTY_MIN, PARTY_MAX),
+    availability: asAvailability(data?.availability),
   };
 }
 
@@ -125,6 +184,7 @@ export async function updateUserSettings(uid: string, settings: UserSettings) {
       friends_only: asFriendsOnly(settings.friendsOnly),
       age_range: asAgeRange(settings.ageRange),
       party_size: clamp(settings.partySize, DEFAULT_PARTY_SIZE, PARTY_MIN, PARTY_MAX),
+      availability: asAvailability(settings.availability),
     })
     .eq('id', uid);
 

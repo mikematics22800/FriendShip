@@ -32,6 +32,7 @@ const IS_WEB = Platform.OS === 'web';
 const SPACE_BG = require('@/assets/images/toon-space.jpg');
 const SPACE_FALLBACK = '#1a1240';
 const LIME = '#b4f500';
+const BAR_SURFACE = '#2a2a2e';
 
 const limeTextGlow = Platform.select({
   ios: {
@@ -248,6 +249,7 @@ function MobileNavBar() {
       compact
       shifting={false}
       labeled
+      style={styles.mobileBar}
       navigationState={{
         index,
         routes: TABS.map(tab => ({
@@ -288,6 +290,7 @@ const styles = StyleSheet.create({
   desktopBar: {
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
+    backgroundColor: BAR_SURFACE,
   },
   brand: {
     fontWeight: '700',
@@ -304,5 +307,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: 10,
+  },
+  mobileBar: {
+    backgroundColor: BAR_SURFACE,
   },
 });
